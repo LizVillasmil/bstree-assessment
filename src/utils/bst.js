@@ -103,8 +103,13 @@ export const search = (node, value) => {
  * @returns {number[]}
  */
 export const inOrder = (node) => {
-  // TODO: Implementar
-  return [];
+  if (node === null) return [];
+
+  return [
+    ...inOrder(node.left),   // 1. Recorre subárbol izquierdo
+    node.value,               // 2. Visita la raíz
+    ...inOrder(node.right),  // 3. Recorre subárbol derecho
+  ];
 };
 
 /**
@@ -116,8 +121,13 @@ export const inOrder = (node) => {
  * @returns {number[]}
  */
 export const preOrder = (node) => {
-  // TODO: Implementar
-  return [];
+  if (node === null) return [];
+
+  return [
+    node.value,               // 1. Visita la raíz primero
+    ...preOrder(node.left),  // 2. Recorre subárbol izquierdo
+    ...preOrder(node.right), // 3. Recorre subárbol derecho
+  ];
 };
 
 /**
@@ -129,8 +139,13 @@ export const preOrder = (node) => {
  * @returns {number[]}
  */
 export const postOrder = (node) => {
-  // TODO: Implementar
-  return [];
+   if (node === null) return [];
+
+  return [
+    ...postOrder(node.left),  // 1. Recorre subárbol izquierdo
+    ...postOrder(node.right), // 2. Recorre subárbol derecho
+    node.value,                // 3. Visita la raíz al final
+  ];
 };
 
 // ─── Tree Transformation ─────────────────────────────────────────────────────
@@ -177,8 +192,13 @@ export const toD3Format = (node) => {
  * @returns {number}
  */
 export const getHeight = (node) => {
-  // TODO: Implementar
-  return 0;
+  if (node === null) return 0;
+
+  const leftHeight  = getHeight(node.left);
+  const rightHeight = getHeight(node.right);
+
+  // Altura = 1 (nodo actual) + la mayor altura entre ambos subárboles
+  return 1 + Math.max(leftHeight, rightHeight);
 };
 
 /**

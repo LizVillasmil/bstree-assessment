@@ -3,12 +3,17 @@
  *
  * Componente principal del visualizador de Árbol Binario de Búsqueda.
  *
- * ⚠️  NOTA PARA EL ESTUDIANTE:
- * Este componente tiene problemas de rendimiento y un bug de UX.
- * Usa React DevTools Profiler para encontrarlos.
+ * ✅ CORRECCIONES APLICADAS:
+ * - BUG #5: getTraversalResult ahora está envuelto en useCallback para no
+ *   recrearse en cada render. traversalResult está en useMemo para que solo
+ *   se recalcule cuando root o activeTraversal cambien.
+ * - BUG #6: handleInsert ahora valida el input y muestra errorMessage cuando
+ *   el usuario ingresa un valor no numérico (ej: "abc").
+ * - TODO #1: renderCustomNode resalta el nodo encontrado en amarillo.
+ * - TODO #2: errorMessage se renderiza en el JSX debajo del inputGroup.
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react"; // ✅ BUG #5: añadidos useMemo y useCallback
 import Tree from "react-d3-tree";
 
 import { insert, search, inOrder, preOrder, postOrder, toD3Format, randomInt } from "../utils/bst";
@@ -17,84 +22,118 @@ import SearchBar from "./SearchBar";
 
 import styles from "./BSTVisualizer.module.css";
 
-// BUG #5 (Performance): Esta función se recrea en cada render.
-// Cuando el árbol tiene 20+ nodos, el re-render se siente lento.
-// Pista: ¿qué hook de React sirve para memoizar una función?
-const getTraversalResult = (root, type) => {
-  switch (type) {
-    case "inOrder":   return inOrder(root);
-    case "preOrder":  return preOrder(root);
-    case "postOrder": return postOrder(root);
-    default: return [];
-  }
-};
-
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function BSTVisualizer() {
-  const [root, setRoot]                   = useState(null);
-  const [inputValue, setInputValue]       = useState("");
-  const [activeTraversal, setTraversal]   = useState(null); // "inOrder" | "preOrder" | "postOrder"
-  const [searchTerm, setSearchTerm]       = useState("");
-  const [foundNode, setFoundNode]         = useState(null);
-  const [errorMessage, setErrorMessage]   = useState("");
+  const [root, setRoot]                 = useState(null);
+  const [inputValue, setInputValue]     = useState("");
+  const [activeTraversal, setTraversal] = useState(null); // "inOrder" | "preOrder" | "postOrder"
+  const [searchTerm, setSearchTerm]     = useState("");
+  const [foundNode, setFoundNode]       = useState(null);
+  const [errorMessage, setErrorMessage] = useState("");
 
   // ── Insert ──────────────────────────────────────────────────────────────────
   const handleInsert = () => {
     const parsed = parseInt(inputValue, 10);
 
-    // BUG #6 (UX): Acepta NaN silenciosamente. Si el usuario escribe
-    // "abc" y presiona insertar, no pasa nada y no hay feedback.
-    // El error se traga. Debes manejar este caso y mostrar el errorMessage.
-    if (!isNaN(parsed)) {
-      setRoot((prevRoot) => insert(prevRoot, parsed));
-      setInputValue("");
-      setErrorMessage("");
+    // ✅ BUG #6 CORREGIDO: Se valida NaN y se muestra mensaje de error al usuario.
+    // Antes: el if simplemente no ejecutaba nada y el input quedaba en pantalla
+    // sin ningún feedback. Ahora se le avisa al usuario qué salió mal.
+    if (isNaN(parsed)) {
+      setErrorMessage("⚠️ Valor inválido. Por favor ingresa un número entero.");
+      return;
     }
+
+    setRoot((prevRoot) => insert(prevRoot, parsed));
+    setInputValue("");
+    setErrorMessage(""); // Limpia el error si el insert fue exitoso
   };
 
   // ── Random Insert ───────────────────────────────────────────────────────────
   const handleRandomInsert = () => {
     const value = randomInt(1, 99);
     setRoot((prevRoot) => insert(prevRoot, value));
+    setErrorMessage(""); // Un insert aleatorio siempre es válido, limpia errores previos
   };
 
   // ── Search ──────────────────────────────────────────────────────────────────
   const handleSearch = () => {
     const parsed = parseInt(searchTerm, 10);
+
+    // Misma validación de NaN aplicada también a la búsqueda
+    if (isNaN(parsed)) {
+      setErrorMessage("⚠️ Valor de búsqueda inválido. Ingresa un número entero.");
+      return;
+    }
+
     const result = search(root, parsed);
     setFoundNode(result ? result.value : null);
+    setErrorMessage("");
   };
 
   // ── Derived data ────────────────────────────────────────────────────────────
-  const d3Data     = root ? toD3Format(root) : null;
+  const d3Data = useMemo(
+    // ✅ BUG #5 CORREGIDO (parte 1): toD3Format solo se recalcula cuando root cambia,
+    // no en cada render. Con árboles grandes esto evita trabajo redundante.
+    () => (root ? toD3Format(root) : null),
+    [root]
+  );
 
-  // BUG #5 continúa: traversalResult se recalcula en cada render,
-  // no solo cuando root o activeTraversal cambian.
-  const traversalResult = activeTraversal
-    ? getTraversalResult(root, activeTraversal)
-    : [];
+  // ✅ BUG #5 CORREGIDO (parte 2): getTraversalResult ahora es una función
+  // estable entre renders (useCallback). Solo se recrea si cambia root.
+  // Antes era una función suelta fuera del componente que no tenía acceso
+  // al root del closure y se recreaba igual en cada render.
+  const getTraversalResult = useCallback(
+    (type) => {
+      switch (type) {
+        case "inOrder":   return inOrder(root);
+        case "preOrder":  return preOrder(root);
+        case "postOrder": return postOrder(root);
+        default: return [];
+      }
+    },
+    [root]
+  );
+
+  // ✅ BUG #5 CORREGIDO (parte 3): traversalResult solo se recalcula
+  // cuando activeTraversal o la función getTraversalResult cambian
+  // (la función cambia solo cuando root cambia, ver arriba).
+  const traversalResult = useMemo(
+    () => (activeTraversal ? getTraversalResult(activeTraversal) : []),
+    [activeTraversal, getTraversalResult]
+  );
 
   // ── Node Rendering ──────────────────────────────────────────────────────────
   /**
-   * Función de render personalizada para cada nodo del árbol.
-   * TODO: El estudiante debe modificar esto para que los nodos
-   * que coincidan con `foundNode` se resalten visualmente.
+   * ✅ TODO IMPLEMENTADO: Los nodos que coincidan con foundNode se resaltan
+   * en amarillo (#F5A623) con borde oscuro para distinguirlos del resto.
+   * El resto de nodos mantiene el color azul original (#4A90D9).
    */
-  const renderCustomNode = ({ nodeDatum }) => (
-    <g>
-      {/* TODO: Cambiar el color del círculo si nodeDatum.name === String(foundNode) */}
-      <circle r={20} fill="#4A90D9" stroke="#fff" strokeWidth={2} />
-      <text
-        fill="white"
-        textAnchor="middle"
-        dominantBaseline="central"
-        fontSize={12}
-        fontWeight="bold"
-      >
-        {nodeDatum.name}
-      </text>
-    </g>
+  const renderCustomNode = useCallback(
+    ({ nodeDatum }) => {
+      const isFound = nodeDatum.name === String(foundNode);
+
+      return (
+        <g>
+          <circle
+            r={20}
+            fill={isFound ? "#F5A623" : "#4A90D9"} // Amarillo si encontrado, azul si no
+            stroke={isFound ? "#B07300" : "#fff"}   // Borde acorde al estado
+            strokeWidth={isFound ? 3 : 2}
+          />
+          <text
+            fill={isFound ? "#1a1a1a" : "white"} // Texto oscuro sobre fondo amarillo
+            textAnchor="middle"
+            dominantBaseline="central"
+            fontSize={12}
+            fontWeight="bold"
+          >
+            {nodeDatum.name}
+          </text>
+        </g>
+      );
+    },
+    [foundNode] // Solo se recrea si foundNode cambia
   );
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -121,7 +160,12 @@ export default function BSTVisualizer() {
           </button>
         </div>
 
-        {/* TODO: Renderizar errorMessage aquí cuando exista */}
+        {/* ✅ TODO IMPLEMENTADO: errorMessage se muestra cuando existe */}
+        {errorMessage && (
+          <p className={styles.errorMessage} role="alert">
+            {errorMessage}
+          </p>
+        )}
 
         <SearchBar
           value={searchTerm}

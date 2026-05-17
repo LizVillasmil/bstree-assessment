@@ -34,26 +34,30 @@ export const createNode = (value) => ({
  * @returns {object} - Nuevo subárbol con el valor insertado
  */
 export const insert = (node, value) => {
+  // BUG #6: Manejo de NaN — un NaN rompería todas las comparaciones
+  if (typeof value !== "number" || isNaN(value)) {
+    console.warn(`insert(): valor inválido ignorado → ${value}`);
+    return node;
+  }
   if (node === null) {
-    return createNode(value); // ← Esto está bien, pero ¿cuándo se usa?
+    return createNode(value); 
   }
 
   // BUG: La comparación siempre va a la derecha
   // Debería ir a la izquierda cuando value < node.value
+  // BUG #1 CORREGIDO: Rama izquierda cuando value es menor
+  if (value < node.value) {
+    return {
+      ...node,
+      left: insert(node.left, value),
+    };
+  }
   if (value > node.value) {
     return {
       ...node,
       right: insert(node.right, value),
     };
   }
-
-  if (value > node.value) { // ← BUG: condición duplicada e incorrecta
-    return {
-      ...node,
-      right: insert(node.right, value),
-    };
-  }
-
   // Los duplicados simplemente caen aquí y retornan el nodo sin cambios
   return node;
 };
@@ -69,10 +73,15 @@ export const insert = (node, value) => {
  * @returns {object|null} - El nodo encontrado, o null
  */
 export const search = (node, value) => {
+  // BUG #6: Un NaN nunca sería encontrado y traversaría todo el árbol inútilmente
+  if (typeof value !== "number" || isNaN(value)) {
+    console.warn(`search(): valor inválido ignorado → ${value}`);
+    return null;
+  }
   if (node === null) return null;
 
-  // BUG: == permite coerción: search(root, "10") === search(root, 10)
-  if (node.value == value) return node; // eslint-disable-line eqeqeq
+
+  if (node.value === value) return node; 
 
   if (value < node.value) {
     return search(node.left, value);
@@ -147,10 +156,9 @@ export const toD3Format = (node) => {
   // BUG: Si node.left es null pero node.right no, nunca se agrega node.right
   if (node.left !== null) {
     children.push(toD3Format(node.left));
-
-    if (node.right !== null) {
+  }
+  if (node.right !== null) {
       children.push(toD3Format(node.right));
-    }
   }
 
   return {

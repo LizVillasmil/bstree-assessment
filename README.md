@@ -131,3 +131,6 @@ En tu PR, incluye una sección `## AI Usage` donde describas esto. Un estudiante
 - [Visualización de BST (referencia visual)](https://visualgo.net/en/bst)
 - [React useMemo](https://react.dev/reference/react/useMemo)
 - [Conventional Commits](https://www.conventionalcommits.org/)
+
+  ENLACE AL VIDEO
+  https://youtu.be/jwtDfz7odn8
